@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NEURO-SCANNER V1.0 | Multimodal Deception Detection</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=JetBrains+Mono:wght@300;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #050a0f;
+            --panel-color: #0e1621;
+            --accent-cyan: #00f3ff;
+            --accent-pink: #ff0055;
+            --accent-green: #39ff14;
+            --text-color: #e0e0e0;
+            --danger: #ff3131;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: 'JetBrains Mono', monospace;
+            margin: 0;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        /* UI Layout */
+        header {
+            padding: 15px 30px;
+            background: linear-gradient(90deg, #000, var(--panel-color), #000);
+            border-bottom: 2px solid var(--accent-cyan);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 0 20px rgba(0, 243, 255, 0.3);
+        }
+
+        h1 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.2rem;
+            letter-spacing: 4px;
+            color: var(--accent-cyan);
+            margin: 0;
+        }
+
+        main {
+            display: grid;
+            grid-template-columns: 1fr 350px;
+            flex: 1;
+            gap: 10px;
+            padding: 15px;
+            overflow: hidden;
+        }
+
+        .dashboard {
+            display: grid;
+            grid-template-rows: 1fr 1fr;
+            gap: 10px;
+        }
+
+        .panel {
+            background: var(--panel-color);
+            border: 1px solid #1a2a3a;
+            border-radius: 4px;
+            position: relative;
+            overflow: hidden;
+            padding: 15px;
+        }
+
+        .panel-title {
+            font-size: 0.7rem;
+            color: var(--accent-cyan);
+            text-transform: uppercase;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        /* Visualization Elements */
+        canvas { width: 100% !important; height: 100% !important; }
+
+        .sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .metric-card {
+            background: rgba(0, 243, 255, 0.05);
+            border-left: 3px solid var(--accent-cyan);
+            padding: 15px;
+            flex: 1;
+        }
+
+        .metric-value {
+            font-size: 1.8rem;
+            font-family: 'Orbitron', sans-serif;
+            color: var(--accent-green);
+        }
+
+        .probability-display {
+            text-align: center;
+            padding: 20px;
+            background: radial-gradient(circle, #1a2a3a 0%, #050a0f 100%);
+            border: 2px solid var(--accent-pink);
+            border-radius: 50%;
+            width: 180px;
+            height: 180px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 10px rgba(255, 0, 85, 0.2); }
+            50% { box-shadow: 0 0 25px rgba(255, 0, 85, 0.5); }
+            100% { box-shadow: 0 0 10px rgba(255, 0, 85, 0.2); }
+        }
+
+        /* Interaction Area */
+        .interaction-overlay {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 90%;
+            text-align: center;
+            background: rgba(0,0,0,0.8);
+            padding: 20px;
+            border: 1px solid var(--accent-cyan);
+        }
+
+        .btn {
+            background: transparent;
+            color: var(--accent-cyan);
+            border: 1px solid var(--accent-cyan);
+            padding: 10px 25px;
+            font-family: 'Orbitron', sans-serif;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-transform: uppercase;
+        }
+
+        .btn:hover {
+            background: var(--accent-cyan);
+            color: #000;
+        }
+
+        .btn:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+
+        #status-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 5px;
+        }
+
+        .status-active { background-color: var(--accent-green); box-shadow: 0 0 5px var(--accent-green); }
+        .status-error { background-color: var(--danger); }
+
+        /* Calibration Modal */
+        #setup-modal {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.95);
+            z-index: 1000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+<div id="setup-modal">
+    <div style="max-width: 500px; padding: 40px; border: 1px solid var(--accent-cyan);">
+        <h2 style="font-family: 'Orbitron'; color: var(--accent-cyan);">SYSTEM INITIALIZATION</h2>
+        <p>このアプリは生体信号を解析するためにマイクと加速度センサーへのアクセス権限を必要とします。科学捜査シミュレーションを開始します。</p>
+        <button class="btn" onclick="initializeSystem()">INITIALIZE SENSORS</button>
+    </div>
+</div>
+
+<header>
+    <h1>NEURO-SCANNER <span style="font-weight:300; font-size: 0.8rem;">v1.0.4-PRO</span></h1>
+    <div>
+        <span id="status-indicator" class="status-error"></span>
+        <span id="system-status" style="font-size: 0.7rem;">SYSTEM STANDBY</span>
+    </div>
+</header>
+
+<main>
+    <div class="dashboard">
+        <div class="panel">
+            <div class="panel-title"><span>Kinetic Tremor (8-12Hz RMS)</span><span id="tremor-val">0.000</span></div>
+            <canvas id="tremorChart"></canvas>
+        </div>
+        <div class="panel">
+            <div class="panel-title"><span>Vocal Micro-tremor (Frequency Variance)</span><span id="vocal-val">0.000</span></div>
+            <canvas id="vocalChart"></canvas>
+        </div>
+    </div>
+
+    <div class="sidebar">
+        <div class="panel" style="flex: 0 0 200px;">
+            <div class="panel-title">Deception Probability</div>
+            <div class="probability-display">
+                <div id="prob-value" style="font-size: 2.5rem; font-family: 'Orbitron'; color: var(--accent-pink);">0%</div>
+                <div style="font-size: 0.6rem;">DETECTED</div>
+            </div>
+        </div>
+
+        <div class="metric-card">
+            <div class="panel-title">Cognitive Load (Latency)</div>
+            <div id="latency-val" class="metric-value">-- ms</div>
+            <div style="font-size: 0.6rem; margin-top:5px; color: #888;">Baseline: <span id="base-lat">0</span>ms</div>
+        </div>
+
+        <div class="metric-card" style="border-left-color: var(--accent-pink);">
+            <div class="panel-title">Bio-Metrics Summary</div>
+            <div id="summary-text" style="font-size: 0.7rem; line-height: 1.4;">Wait for calibration...</div>
+        </div>
+    </div>
+</main>
+
+<div class="interaction-overlay">
+    <div id="question-container">
+        <p id="question-text" style="margin: 0 0 15px 0; font-size: 1.1rem; color: var(--accent-cyan);">Ready to begin calibration?</p>
+        <button id="action-btn" class="btn" onclick="handleInteraction()" disabled>WAITING...</button>
+    </div>
+</div>
+
+<script>
+/**
+ * NEURO-SCANNER CORE ENGINE
+ * Advanced DSP & Multimodal Fusion Logic
+ */
+
+let config = {
+    weights: { tremor: 0.25, vocal: 0.35, latency: 0.40 },
+    baseline: { tremor: 0.01, vocal: 0.01, latency: 1500 },
+    isCalibrating: true,
+    calibrationSamples: 0,
+    maxCalibration: 100
+};
+
+let state = {
+    tremorRMS: 0,
+    vocalVariance: 0,
+    lastResponseTime: 0,
+    currentQuestionIdx: 0,
+    questions: [
+        "昨日、何を食べていましたか？",
+        "現在の居住地はどこですか？",
+        "あなたは一度も法律に違反したことがありませんか？",
+        "このプロジェクトの秘密を知っていますか？",
+        "あなたは嘘をついていますか？"
+    ],
+    isRecording: false
+};
+
+// Web Audio API Context
+let audioCtx, analyser, dataArray;
+// Motion API
+let accelerometerData = { x: 0, y: 0, z: 0 };
+
+// Charts
+let tremorChart, vocalChart;
+
+async function initializeSystem() {
+    document.getElementById('setup-modal').style.display = 'none';
+    
+    try {
+        // 1. Audio Setup
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const source = audioCtx.createMediaStreamSource(stream);
+        analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 1024;
+        source.connect(analyser);
+        dataArray = new Uint8Array(analyser.frequencyBinCount);
+
+        // 2. Motion Setup (iOS requirement)
+        if (typeof DeviceMotionEvent.requestPermission === 'function') {
+            const permission = await DeviceMotionEvent.requestPermission();
+            if (permission !== 'granted') throw new Error("Motion permission denied");
+        }
+        window.addEventListener('devicemotion', handleMotion);
+
+        // 3. UI & Engine Start
+        initCharts();
+        startEngine();
+        
+        document.getElementById('status-indicator').className = 'status-active';
+        document.getElementById('system-status').innerText = 'SYSTEM ACTIVE / CALIBRATING';
+        document.getElementById('action-btn').disabled = false;
+        document.getElementById('action-btn').innerText = 'START CALIBRATION';
+        
+    } catch (err) {
+        console.error(err);
+        alert("Hardware access denied. Please check permissions.");
+        document.getElementById('status-indicator').className = 'status-error';
+        document.getElementById('system-status').innerText = 'SENSOR ERROR';
+    }
+}
+
+function handleMotion(event) {
+    // Raw data for High-Pass Filter implementation
+    accelerometerData.x = event.acceleration.x || 0;
+    accelerometerData.y = event.acceleration.y || 0;
+    accelerometerData.z = event.acceleration.z || 0;
+}
+
+function initCharts() {
+    const chartOptions = {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: { x: { display: false }, y: { display: false } },
+        elements: { line: { tension: 0.4, borderWidth: 2, borderColor: '#00f3ff' }, point: { radius: 0 } },
+        plugins: { legend: { display: false } }
+    };
+
+    tremorChart = new Chart(document.getElementById('tremorChart'), {
+        type: 'line',
+        data: { labels: Array(50).fill(''), datasets: [{ data: Array(50).fill(0) }] },
+        options: chartOptions
+    });
+
+    vocalChart = new Chart(document.getElementById('vocalChart'), {
+        type: 'line',
+        data: { labels: Array(50).fill(''), datasets: [{ data: Array(50).fill(0), borderColor: '#ff0055' }] },
+        options: chartOptions
+    });
+}
+
+// DSP Logic functions
+function processTremor() {
+    // Simulate High-Pass Filter (HPF) + RMS Calculation
+    // In a real embedded system, we'd apply a Butterworth filter here. 
+    // We target the 8-12Hz Physiological Tremor band.
+    const motionMag = Math.sqrt(accelerometerData.x**2 + accelerometerData.y**2 + accelerometerData.z**2);
+    
+    // Simple HPF approximation: differentiate the signal to remove gravity/low-freq drift
+    let tremorSignal = Math.abs(motionMag - 9.8); // Subtracting gravity approx
+    state.tremorRMS = tremorSignal * 0.5; // Normalized scale
+    
+    updateChart(tremorChart, state.tremorRMS);
+    document.getElementById('tremor-val').innerText = state.tremorRMS.toFixed(4);
+}
+
+function processVocal() {
+    if (!analyser) return;
+    analyser.getByteFrequencyData(dataArray);
+    
+    // Focus on 8-12Hz equivalent in human speech frequency range
+    // We look for variance in the amplitude of lower-mid harmonics (micro-tremor detection)
+    let lowFreqSum = 0;
+    let lowFreqCount = 0;
+    for(let i = 1; i < 10; i++) {
+        lowFreqSum += dataArray[i];
+        lowFreqCount++;
+    }
+    let avg = lowFreqSum / lowFreqCount;
+    
+    // Variance calculation (physiological tremor causes micro-fluctuations in vocal cord tension)
+    let variance = 0;
+    for(let i = 1; i < 10; i++) {
+        variance += Math.pow(dataArray[i] - avg, 2);
+    }
+    state.vocalVariance = variance / lowFreqCount;
+
+    updateChart(vocalChart, state.vocalVariance / 100);
+    document.getElementById('vocal-val').innerText = state.vocalVariance.toFixed(2);
+}
+
+function updateChart(chart, val) {
+    chart.data.datasets[0].data.push(val);
+    chart.data.datasets[0].data.shift();
+    chart.update('none');
+}
+
+function startEngine() {
+    setInterval(() => {
+        processTremor();
+        processVocal();
+        calculateTotalProbability();
+    }, 50);
+}
+
+function calculateTotalProbability() {
+    // Normalize all metrics to 0.0 - 1.0 based on baseline
+    const normTremor = Math.min(state.tremorRMS / (config.baseline.tremor * 5), 1);
+    const normVocal = Math.min(state.vocalVariance / (config.baseline.vocal * 100), 1);
+    
+    // Cognitive Latency normalization
+    // Lie detection theory: too fast (subconscious defense) or too slow (cognitive construction)
+    let normLatency = 0;
+    if (state.lastResponseTime > 0) {
+        if (state.lastResponseTime > 2500) { // Cognitive delay
+            normLatency = Math.min((state.lastResponseTime - 2500) / 3000, 1);
+        } else if (state.lastResponseTime < 800) { // Impulsive reflex
+            normLatency = Math.min((800 - state.lastResponseTime) / 800, 1);
+        }
+    }
+
+    const prob = (normTremor * config.weights.tremor) + 
+                 (normVocal * config.weights.vocal) + 
+                 (normLatency * config.weights.latency);
+
+    const probPercent = Math.floor(prob * 100);
+    const display = document.getElementById('prob-value');
+    display.innerText = probPercent + "%";
+    
+    // Visual feedback
+    if (probPercent > 60) {
+        display.style.color = 'var(--danger)';
+        document.querySelector('.probability-display').style.borderColor = 'var(--danger)';
+    } else {
+        display.style.color = 'var(--accent-pink)';
+        document.querySelector('.probability-display').style.borderColor = 'var(--accent-pink)';
+    }
+
+    // Update summary
+    document.getElementById('summary-text').innerHTML = `
+        T-RMS: ${normTremor.toFixed(2)}<br>
+        V-VAR: ${normVocal.toFixed(2)}<br>
+        C-LAT: ${normLatency.toFixed(2)}
+    `;
+}
+
+function handleInteraction() {
+    const btn = document.getElementById('action-btn');
+    const qText = document.getElementById('question-text');
+
+    if (config.isCalibrating) {
+        // CALIBRATION PHASE
+        config.isCalibrating = false;
+        config.calibrationSamples++;
+        
+        // Accumulate baseline averages
+        config.baseline.tremor += state.tremorRMS / config.maxCalibration;
+        config.baseline.vocal += state.vocalVariance / config.maxCalibration;
+        
+        document.getElementById('system-status').innerText = `CALIBRATING... ${Math.floor((config.calibrationSamples/config.maxCalibration)*100)}%`;
+        
+        if(config.calibrationSamples >= config.maxCalibration) {
+            config.isCalibrating = true; // Reset for next loop or move to testing
+            config.calibrationSamples = 0;
+            // Transition to Testing
+            startTesting();
+        }
+    } else {
+        // RESPONSE PHASE
+        const now = performance.now();
+        const diff = now - state.lastResponseTime;
+        state.lastResponseTime = now;
+        
+        document.getElementById('latency-val').innerText = Math.floor(diff) + " ms";
+        document.getElementById('base-lat').innerText = Math.floor(config.baseline.latency);
+        
+        // Move to next question
+        state.currentQuestionIdx++;
+        if(state.currentQuestionIdx < state.questions.length) {
+            qText.innerText = state.questions[state.currentQuestionIdx];
+            btn.innerText = "CONFIRM RESPONSE";
+        } else {
+            qText.innerText = "ANALYSIS COMPLETE";
+            btn.innerText = "RESTART SYSTEM";
+            state.currentQuestionIdx = 0;
+        }
+    }
+}
+
+function startTesting() {
+    config.isCalibrating = false;
+    document.getElementById('system-status').innerText = 'MODE: ACTIVE TEST';
+    document.getElementById('question-text').innerText = state.questions[0];
+    document.getElementById('action-btn').innerText = 'RESPONSE RECORDING...';
+    
+    // Set the baseline for latency
+    config.baseline.latency = 1500; 
+    
+    // A simple loop to pretend we are waiting for a response
+    // the 'interaction' happens when the user clicks the button
+    const timer = setInterval(() => {
+        if (state.currentQuestionIdx >= state.questions.length) {
+            clearInterval(timer);
+        }
+    }, 1000);
+}
+
+// Overlay for question timing
+document.getElementById('action-btn').addEventListener('click', () => {
+    if (!config.isCalibrating && state.currentQuestionIdx < state.questions.length) {
+        // Record the exact time the question was displayed (roughly)
+        // We use the timestamp of when the button is ready for the NEXT question
+        state.lastResponseTime = performance.now();
+    }
+});
+
+</script>
+</body>
+</html>
